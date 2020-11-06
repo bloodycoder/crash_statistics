@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import argparse
 import os
 import re
@@ -6,6 +8,7 @@ import warnings
 from pygdbmi.gdbcontroller import GdbController
 from pprint import pprint
 # Main function
+CVEOBJ = '2016-4488'
 def oneiter(program,crashdir):
     """
     parser = argparse.ArgumentParser()
@@ -53,12 +56,17 @@ def oneiter(program,crashdir):
     mintime = [max_val,max_val,max_val,max_val]
     crashtime = [0,0,0,0]
     finalfname = ['','','','']
+    cnt = 0
     for fname in os.listdir(path):
         if fname == ".state" or "orig:" in fname:
             continue
         if 'README.txt' == fname:
             continue
-        cmd=program + " " + path + "/" + fname
+        
+        #cnt+=1
+        #continue
+
+        cmd='valgrind '+program + " < " + path + "/" + fname
         timespan = int(fname.split(",")[1])
         p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stderr = subprocess.STDOUT)
         out1 = ''
@@ -67,49 +75,41 @@ def oneiter(program,crashdir):
             out1 += str(line)+'\n'
         out, err = p.communicate()
         out1 += str(out)
-        if(out1.find("negative-size-param") != -1):
-            # maybe integer overflow
-            if(timespan<mintime[0]):
-                mintime[0] = timespan
-                finalfname[0] = path + "/" + fname
-                crashtime[0] += 1
-        elif(out1.find("SEGV on unknown address")!=-1):
-            # maybe invalid write
-            if(timespan<mintime[1]):
-                mintime[1] = timespan
-                finalfname[1] = path + "/" + fname
-                crashtime[1] += 1
-        elif(out1.find("heap-buffer-overflow")!=-1):
-            # maybe heap-buffer-overflow 
-            if(timespan<mintime[2]):
-                mintime[2] = timespan
-                finalfname[2] = path + "/" + fname
-                crashtime[2] += 1
-        elif(out1.find("heap-use-after-free")!=-1):
-            # maybe heap-buffer-overflow 
-            if(timespan<mintime[3]):
-                mintime[3] = timespan
-                finalfname[3] = path + "/" + fname
-                crashtime[3] += 1
-        else:
-            #gdb start
-            """
-            gdbmi = GdbController()
-            response = gdbmi.write('-file-exec-file '+args.program)
-            response = gdbmi.write('run '+path+'/'+fname)
-            response = gdbmi.send_signal_to_gdb('SIGKILL')
-            response = gdbmi.exit()
-            """
+        if(CVEOBJ == '2016-4492'):
+            if(out1.find("cplus-dem.c")!=-1):
+                cnt+=1     
+        elif(CVEOBJ == '2016-4488'):
+            if(out1.find("register_Btype")!=-1 and out1.find("demangle_fund_type")!=-1):
+                cnt+=1
+        elif(CVEOBJ == '2016-4489'):
+            if(out1.find("string_appendn")!= -1 and out1.find("gnu_special")!= -1 and out1.find("cplus_demangle")!= -1 and out1.find("demangle_it")!= -1):
+                cnt+=1   
+        elif(CVEOBJ == '2016-4491'):
+            if(out1.find("d_print_comp_inner")!=-1):
+                cnt+=1
         code = p.returncode
+
+            #gdb start
+        '''
+        gdbmi = GdbController()
+        response = gdbmi.write('-file-exec-file '+program)
+        response = gdbmi.write('run '+path+'/'+fname)
+        #response = gdbmi.send_signal_to_gdb('SIGKILL')
+        response = gdbmi.exit()
+        code = p.returncode
+        '''
     #print ("hello world")
-    print(mintime)
-    print(crashtime)
+    #print(mintime)
+    #print(crashtime)
+    print(cnt)
     # print "Trigger %d" % trigger
     # print "Not trigger %d" % not_trigger
 def main():
-    p = "/home/yangke/Desktop/jiaoben/mjs/mjs-int-ofl"
+    p = "/home/yangke/Program/AFL/aflgo/bak/aflgo-good/tutorial/samples/test-aflgo/tests/binutils/obj-2/"+CVEOBJ+"/binutils/cxxfilt"
+    print("start")
     for i in range(1,9):
-        print("iter:"+str(i))
-        q = "/home/yangke/Desktop/out-10-18-cov/mjs-int-ofl_"+str(i)+"_result/crashes"
+        #print("iter:"+str(i))
+        #q = "/home/yangke/Program/AFL/aflgo/bak/aflgo-good/tutorial/samples/test-aflgo/tests/binutils/out/"+CVEOBJ+"-origin/target_"+str(i)+"_result/crashes"
+        q = "/home/yangke/Program/AFL/aflgo/bak/aflgo-good/tutorial/samples/test-aflgo/tests/binutils/out/"+CVEOBJ+"/target_"+str(i)+"_result/crashes"
         oneiter(p,q)
 main()
